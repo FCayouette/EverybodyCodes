@@ -13,8 +13,6 @@ struct Coord
 	T x = {}, y = {};
 };
 using Point = Coord<int>;
-
-constexpr std::array<char, 4> coords = { 'N', 'E', 'S', 'W' };
 constexpr std::array<Point, 4> directions = { Point(1, 0), Point(0, 1), Point(-1, 0), Point(0,-1) };
 
 template <typename T>
@@ -26,44 +24,28 @@ public:
 	constexpr decltype(auto) operator()(Args&&...args) const { return lambda(std::move(*this), std::forward<Args>(args)...); }
 };
 
-int Solve(int col, const std::string& filename)
+int Solve(std::vector<std::string> map, Point start)
 {
-	std::ifstream in(filename);
-	if (!in)
+	int result = std::numeric_limits<int>::max();
+
+	std::vector<Point> points = { start };
+	std::map<char, std::vector<int>> herbs;
+	std::set<char> types;
+
+	for (int x = 0; x < map.size(); ++x)
 	{
-		std::cout << std::format("Could not open file {}.\nAborting!\n", filename);
-		return -1;
+		const std::string& line = map[x];
+		for (int i = 0; i < line.size(); ++i)
+			if (line[i] >= 'A' && line[i] <= 'Z')
+			{
+				Point p(x, i);
+				herbs[line[i]].push_back(points.size());
+				points.push_back(p);
+				types.insert(line[i]);
+			}
 	}
-	{
-		int result = std::numeric_limits<int>::max();
 
-		std::vector<std::string> map;
-		std::string line;
-
-		std::getline(in, line);
-		Point start{ 0, col == 1 ? (int)line.find('.') : 0 };
-		std::vector<Point> points = { start };
-		std::map<char, std::vector<int>> herbs;
-		std::set<char> types;
-
-		map.push_back(std::move(line));
-		while (std::getline(in, line))
-		{
-			for (int i = 0; i < line.size(); ++i)
-				if (line[i] >= 'A' && line[i] <= 'Z')
-				{
-					Point p(map.size(), i);
-					herbs[line[i]].push_back(points.size());
-					points.push_back(p);
-					types.insert(line[i]);
-				}
-			map.push_back(std::move(line));
-		}
-
-		if (col != 1)
-			points[0] = Point((int)map.size()-2, col == 0 ? (int)map.front().size()-1 : 0);
-		
-		auto CanPass = [&map](const Point& p) -> bool
+	auto CanPass = [&map](const Point& p) -> bool
 		{
 			if (p.x < 0 || p.y < 0 || p.x >= map.size() || p.y >= map.front().size())
 				return false;
@@ -72,68 +54,71 @@ int Solve(int col, const std::string& filename)
 				return false;
 			return true;
 		};
-		std::vector<std::vector<int>> distances(points.size(), std::vector<int>(points.size(), 0));
-		for (int i = 0; i < points.size() - 1; ++i)
-		{
-			std::set<Point> toFind, cur = { points[i] }, guard = cur, next;
-			for (int j = i + 1; j < points.size(); ++j)
-				toFind.insert(points[j]);
 
-			int dist = 0;
-			while (!toFind.empty())
-			{
-				++dist;
-				for (Point p : cur)
-					for (Point d : directions)
-						if (Point np = p + d; CanPass(np) && guard.insert(np).second)
+	std::vector<std::vector<int>> distances(points.size(), std::vector<int>(points.size(), 0));
+	for (int i = 0; i < points.size() - 1; ++i)
+	{
+		std::set<Point> toFind, cur = { points[i] }, guard = cur, next;
+		for (int j = i + 1; j < points.size(); ++j)
+			toFind.insert(points[j]);
+
+		int dist = 0;
+		while (!toFind.empty())
+		{
+			++dist;
+			for (Point p : cur)
+				for (Point d : directions)
+					if (Point np = p + d; CanPass(np) && guard.insert(np).second)
+					{
+						if (auto iter = toFind.find(np); iter != toFind.cend())
 						{
-							if (auto iter = toFind.find(np); iter != toFind.cend())
-							{
-								int x = std::find(ALLc(points), np) - points.cbegin();
-								distances[i][x] = distances[x][i] = dist;
-								toFind.erase(iter);
-							}
-							next.insert(np);
+							int x = std::find(ALLc(points), np) - points.cbegin();
+							distances[i][x] = distances[x][i] = dist;
+							toFind.erase(iter);
 						}
-				std::swap(cur, next);
-				next.clear();
-			}
+						next.insert(np);
+					}
+			std::swap(cur, next);
+			next.clear();
 		}
-
-		std::vector<char> searchOrder{ types.cbegin(), types.cend() };
-
-		auto FindMin = y_combinator([&](auto&& FindMin, int depth, int index, int cost) ->int
-			{
-				if (cost + distances[0][index] > result)
-					return result;
-				if (depth == searchOrder.size() - 1)
-					return cost + distances[0][index];
-				int minCost = std::numeric_limits<int>::max();
-				++depth;
-				for (int i : herbs[searchOrder[depth]])
-					minCost = std::min(minCost, FindMin(depth, i, cost + distances[index][i]));
-				return minCost;
-			});
-
-		do
-		{
-			int searchResult = std::numeric_limits<int>::max();
-			for (int index : herbs[searchOrder.front()])
-				searchResult = std::min(searchResult, FindMin(0, index, distances[0][index]));
-			result = std::min(searchResult, result);
-		} while (std::next_permutation(ALL(searchOrder)));
-		return result;
 	}
+
+	std::vector<char> searchOrder{ types.cbegin(), types.cend() };
+
+	auto FindMin = y_combinator([&](auto&& FindMin, int depth, int index, int cost) ->int
+		{
+			if (cost + distances[0][index] > result)
+				return result;
+			if (depth == searchOrder.size() - 1)
+				return cost + distances[0][index];
+			int minCost = std::numeric_limits<int>::max();
+			++depth;
+			for (int i : herbs[searchOrder[depth]])
+				minCost = std::min(minCost, FindMin(depth, i, cost + distances[index][i]));
+			return minCost;
+		});
+
+	do
+	{
+		int searchResult = std::numeric_limits<int>::max();
+		for (int index : herbs[searchOrder.front()])
+			searchResult = std::min(searchResult, FindMin(0, index, distances[0][index]));
+		result = std::min(searchResult, result);
+	} while (std::next_permutation(ALL(searchOrder)));
+	return result;
 }
 
 int main(int argc, char* argv[])
 {
 	auto ChronoStart = std::chrono::high_resolution_clock::now();
-	if (argc < 6)
+	if (argc < 4)
 	{
-		std::cout << "Usage: EC2024DayXX.exe Part1Filename Part2Filename Part3Left Part3Mid Part3Right\n";
+		std::cout << "Usage: EC2024Day15.exe Part1Filename Part2Filename Part3Filename\n";
 		return -1;
 	}
+	std::vector<std::string> map;
+	std::string line;
+
 	std::ifstream in1(argv[1]);
 	if (!in1)
 	{
@@ -142,17 +127,13 @@ int main(int argc, char* argv[])
 	}
 	{
 		int part1 = 0;
-
-		std::vector<std::string> map;
-		std::string line;
-
 		std::getline(in1, line);
-		Point start{0, (int)line.find('.')};
+		Point start{ 0, (int)line.find('.') };
 		map.push_back(std::move(line));
 		while (std::getline(in1, line))
 			map.push_back(std::move(line));
 
-		std::set<Point> cur = {start}, guard = cur, next;
+		std::set<Point> cur = { start }, guard = cur, next;
 		bool goOn = true;
 		while (goOn)
 		{
@@ -160,7 +141,7 @@ int main(int argc, char* argv[])
 			for (Point p : cur)
 				for (Point d : directions)
 				{
-					Point np = p+d;
+					Point np = p + d;
 					if (np.x >= 0 && np.y >= 0 && np.x < map.size() && np.y < map.front().size() && map[np.x][np.y] != '#' && guard.insert(np).second)
 					{
 						if (map[np.x][np.y] == 'H')
@@ -174,15 +155,68 @@ int main(int argc, char* argv[])
 			std::swap(next, cur);
 			next.clear();
 		}
-		std::cout << std::format("Part 1: {}\n", 2*part1);
+		std::cout << std::format("Part 1: {}\n", 2 * part1);
+	}
+	std::ifstream in2(argv[2]);
+	if (!in2)
+	{
+		std::cout << std::format("Could not open file {}.\nAborting!\n", argv[2]);
+		return -1;
+	}
+	{
+		map.clear();
+		while (std::getline(in2, line))
+			map.push_back(std::move(line));
+
+		std::cout << std::format("Part 2: {}\n", Solve(std::move(map), {0, (int)map.front().find('.')}));
 	}
 
-	int part2 = Solve(1, argv[2]), part3 = 0;
-	std::cout << std::format("Part 2: {}\n", part2);
-	
-	for (int i = 3; i< 6; ++i)
-		part3 += Solve(i-3, argv[i]);
+	std::ifstream in3(argv[3]);
+	if (!in3)
+	{
+		std::cout << std::format("Could not open file {}.\nAborting!\n", argv[3]);
+		return -1;
+	}
+	map.clear();
+	std::set<char> seenTypes;
+	while (std::getline(in3, line))
+	{
+		for (char c : line)
+			if (c >= 'A' && c <= 'Z')
+				seenTypes.insert(c);
+		map.push_back(std::move(line));
+	}
+
+	std::vector<int> separators;
+	for (int i = 1; i < map.front().size() - 2; ++i)
+	{
+		bool wall = true;
+		for (int j = 0; wall && j < map.size() - 2; ++j)
+			wall = (map[j][i] == '#' || map[j][i + 1] == '#');
+		if (wall)
+			separators.push_back(i);
+	}
+	int part3 = 0;
+	for (int i = 0; i < 3; ++i)
+	{
+		std::vector<std::string> subMap;
+		int s, len;
+		if (i == 0) s = 0, len = separators.front() + 2;
+		else if( i == 1) s = separators.front() + 1, len = separators.back() - s + 1;
+		else s = separators.back(), len = map.front().size()-s+1;
+
+		for (const std::string& l : map)
+			subMap.push_back(l.substr(s, len));
+
+		if (i == 1)
+		{
+			subMap[subMap.size() - 2][0] = (*seenTypes.crbegin()) + 1;
+			subMap[subMap.size() - 2][subMap.front().size() - 1] = (*seenTypes.crbegin()) + 2;
+			part3 += Solve(std::move(subMap), {0, (int)(subMap.front().find('.'))});
+		}
+		else
+			part3 += Solve(std::move(subMap), {(int)map.size()-2, !i ? separators.front()+1: 0});
+	}
 	std::cout << std::format("Part 3: {}\n", part3);
-	
 	std::cout << std::format("Duration: {}\n", std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - ChronoStart));
 }
