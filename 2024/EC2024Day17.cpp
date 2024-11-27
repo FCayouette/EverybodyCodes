@@ -7,6 +7,7 @@ using i64 = long long;
 template<typename T>
 struct Coord
 {
+	constexpr bool operator <  (const Coord& p) const { if (x < p.x) return true; else if (p.x < x) return false; else return y < p.y; }
 	constexpr bool operator==(const Coord& p) const { return x == p.x && y == p.y; }
 	T x = {}, y = {};
 };
@@ -39,73 +40,49 @@ std::vector<Point> GetStars(std::ifstream& in)
 
 int Solve(std::vector<Point> stars)
 {
-	std::vector<std::vector<int>> distances(stars.size(), std::vector<int>(stars.size(), -1));
-	int a, b, minDistance = std::numeric_limits<int>::max();
+	std::vector<std::pair<int, Point>> distances;
+	int minDistance = std::numeric_limits<int>::max();
 	for (int i = 0; i < stars.size(); ++i)
 		for (int j = i + 1; j < stars.size(); ++j)
-		{
-			int dist = ManhattanDistance(stars[i], stars[j]);
-			distances[i][j] = distances[j][i] = dist;
-			if (dist < minDistance)
-			{
-				a = i, b = j;
-				minDistance = dist;
-			}
-		}
+			distances.push_back({ ManhattanDistance(stars[i], stars[j]), Point(i,j)});
 
-	int result = minDistance + stars.size();
-	std::set<int> graph;
-	graph.insert(a);
-	graph.insert(b);
-	distances[a][b] = distances[b][a] = -1;
+	std::sort(ALL(distances));
 
+	int result = distances.front().first + stars.size(), work = 1;
 	std::vector<std::set<int>> subGraphs;
-	subGraphs.push_back(std::move(graph));
+	subGraphs.push_back({distances.front().second.x, distances.front().second.y});
 
 	while (subGraphs.front().size() < stars.size())
 	{
-		minDistance = std::numeric_limits<int>::max();
-		int groupA, groupB;
-		for (int i = 0; i < stars.size(); ++i)
-			for (int j = i+1; j < stars.size(); ++j)
-				if (int d = distances[i][j]; d > 0 && d < minDistance)
-				{
-					int sgA = -1, sgB = -1, index = 0;
-					for (const auto& sg : subGraphs)
-					{
-						if (sg.find(i) != sg.cend())
-							sgA = index;
-						if (sg.find(j) != sg.cend())
-							sgB = index;
-						++index;
-					}
+		auto [minDistance, p] = distances[work++];
+		int groupA = -1, groupB = -1, i = p.x, j = p.y, index = 0;
+		for (const auto& sg : subGraphs)
+		{
+			if (sg.find(i) != sg.cend())
+				groupA = index;
+			if (sg.find(j) != sg.cend())
+				groupB = index;
+			++index;
+		}
 
-					if (sgA > -1 && sgB == sgA) // cycle
-						distances[i][j] = distances[j][i] = -1;
-					else
-					{
-						minDistance = distances[i][j];
-						a = i, b = j;
-						groupA = sgA;
-						groupB = sgB;
-					}
+		if (groupA > -1 && groupB == groupA) 
+			continue; // would create a cycle
 
-				}
 		if (groupA == -1 && groupB == -1)
-			subGraphs.push_back(std::set<int>{a, b});
+			subGraphs.push_back({i, j});
 		else if (groupA == -1)
-			subGraphs[groupB].insert(a);
+			subGraphs[groupB].insert(i);
 		else if (groupB == -1)
-			subGraphs[groupA].insert(b);
+			subGraphs[groupA].insert(j);
 		else
 		{
 			if (groupA > groupB)
-			{
 				std::swap(groupA, groupB);
-				std::swap(a, b);
-			}
 			subGraphs[groupA].insert(ALLc(subGraphs[groupB]));
 			subGraphs[groupB].clear();
+			while (++groupB < subGraphs.size())
+				std::swap(subGraphs[groupB], subGraphs[groupB-1]);
+			subGraphs.pop_back();
 		}
 		result += minDistance;
 	}
