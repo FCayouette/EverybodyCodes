@@ -1,7 +1,6 @@
 import std.core;
 
 using u64 = unsigned long long;
-using i64 = long long;
 
 template<typename T>
 struct Coord
@@ -49,14 +48,6 @@ template <std::integral T>
 	return result % mod;
 }
 
-// From https://www.rookieslab.com/posts/how-to-find-multiplicative-inverse-of-a-number-modulo-m-in-python-cpp
-template <std::integral T>
-[[nodiscard]] constexpr T ModuloInvMul(T A, T M) {
-	// Assumes that M is a prime number
-	// Returns multiplicative modulo inverse of A under M
-	return ModuloExp(A, M - 2, M);
-}
-
 int main(int argc, char* argv[])
 {
 	auto ChronoStart = std::chrono::high_resolution_clock::now();
@@ -84,11 +75,11 @@ int main(int argc, char* argv[])
 				if (p.y == 1)
 					std::swap(p.x, p.y);
 				else
-					p += Point(1,-1);
+					p += Point(1, -1);
 			}
-		
+
 		for (const Point& p : points)
-			part1 += p.x + 100*p.y;
+			part1 += p.x + 100 * p.y;
 
 		std::cout << std::format("Part 1: {}\n", part1);
 	}
@@ -103,12 +94,13 @@ int main(int argc, char* argv[])
 		u64 part2 = 0;
 		std::vector<Point> cycles;
 		std::string x, y;
+
 		while (in2 >> x >> y)
 		{
-			Point p=GetCoord(x, y);
-			cycles.push_back(Point(p.x+p.y-1, p.y-1));
+			Point p = GetCoord(x, y);
+			cycles.push_back(Point(p.x + p.y - 1, p.y - 1));
 		}
-
+		
 		Point cycleOffset = cycles.front();
 		for (int i = 1; i < cycles.size(); ++i)
 		{
@@ -144,22 +136,17 @@ int main(int argc, char* argv[])
 	{
 		std::string x, y;
 		in3 >> x >> y;
-		Point p=GetCoord(x, y);
-		u64 cycle = p.x + p.y - 1, remainder = p.y - 1;
+		Point p = GetCoord(x, y);
+		u64 cycle = p.x + p.y - 1, remainder = p.y - 1, totient = cycle-1, multiples = 1;
 		while (in3 >> x >> y)
 		{
 			p = GetCoord(x, y);
 			u64 c1 = cycle, r1 = remainder, c2 = p.x + p.y - 1, r2 = p.y - 1;
 			cycle *= c2;
-			u64 invA = 1, workA = c2, invB = ModuloInvMul(c1, c2);
-			while ((workA %= c1) != 1)
-			{
-				u64 times = (c1 - workA + (c2 - 1)) / c2;
-				workA += c2 * times;
-				invA += times;
-			}
-			remainder = (ModuloMul(r1, ModuloMul(invA, c2, cycle), cycle) +
-						 ModuloMul(r2, ModuloMul(invB, c1, cycle), cycle)) % cycle;
+			remainder = (ModuloMul(r1, ModuloMul(ModuloExp(c2, totient - 1, c1), c2, cycle), cycle) + // Inverse by Euler's theorem
+				ModuloMul(r2, ModuloMul(ModuloExp(c1, c2 - 2, c2), c1, cycle), cycle)) % cycle; // Inverse by Fermat's little theorem
+			multiples = multiples * (c2 - 1) + c1;
+			totient = cycle - multiples;
 		}
 		std::cout << std::format("Part 3: {}\n", remainder);
 	}
