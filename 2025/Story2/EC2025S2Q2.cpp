@@ -66,7 +66,6 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 	{
-		std::string ring;
 		in2 >> line;
 		std::cout << std::format("Part 2: {}\n", CirclePop(std::move(line), 100));
 	}
@@ -78,7 +77,6 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 	{
-		std::string ring;
 		in3 >> line;
 		std::cout << std::format("Part 3: {}\n", CirclePop(std::move(line), 100000));
 	}
