@@ -17,20 +17,20 @@ using u64 = unsigned long long;
 	if (s.empty()) [[unlikely]]
 		return results;
 
-		size_t tokenStart = 0;
-		do
+	size_t tokenStart = 0;
+	do
+	{
+		size_t e = s.find(token, tokenStart);
+		if (e == std::string::npos)
 		{
-			size_t e = s.find(token, tokenStart);
-			if (e == std::string::npos)
-			{
-				results.emplace_back(s.substr(tokenStart));
-				break;
-			}
-			results.emplace_back(s.substr(tokenStart, e - tokenStart));
-			tokenStart = e + token.size();
-		} while (tokenStart < s.size());
+			results.emplace_back(s.substr(tokenStart));
+			break;
+		}
+		results.emplace_back(s.substr(tokenStart, e - tokenStart));
+		tokenStart = e + token.size();
+	} while (tokenStart < s.size());
 
-		return results;
+	return results;
 }
 
 struct FishBone
@@ -67,12 +67,13 @@ constexpr std::vector<FishBone> GetFishBone(std::vector<std::string> values)
 
 constexpr u64 Concat(u64 to, u64 a)
 {
-	while (a > 0)
+	u64 work = a;
+	while (work)
 	{
-		to = to * 10 + a % 10;
-		a /= 10;
+		to *= 10;
+		work /= 10;
 	}
-	return to;
+	return to + a;
 }
 
 constexpr u64 GetQuality(const std::vector<FishBone>& fish)
@@ -111,7 +112,7 @@ int main(int argc, char* argv[])
 	auto ChronoStart = std::chrono::high_resolution_clock::now();
 	if (argc < 4)
 	{
-		std::cout << "Usage: EC2025S1QX.exe Part1Filename Part2Filename Part3Filename\n";
+		std::cout << "Usage: EC2025Day05.exe Part1Filename Part2Filename Part3Filename\n";
 		return -1;
 	}
 	std::ifstream in1(argv[1]);
