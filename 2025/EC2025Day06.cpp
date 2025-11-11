@@ -121,31 +121,51 @@ int main(int argc, char* argv[])
 				else if (line[i] == 'a' + x)
 					novices.push_back(i);
 			}
+
+			bool first = true, low=true, high = false;;
+			auto ml = mentors.cend(), mh= mentors.cbegin();
 			for (int n : novices)
 			{
-				int factor = 1000;
-				for (int i = 1, m = n + i; i <= 1000; ++i, ++m)
+				if (first)
 				{
-					if (m >= line.size())
-					{
-						--factor;
-						m = 0;
-					}
-					if (std::binary_search(ALLc(mentors), m))
-						part3 += factor;
+					while (*(ml-1) >= line.size() -1000 + n) --ml;
+					while (*mh <= n+1000) ++mh;
+					first = false;
 				}
-				factor = 1000;
-				for (int i = 0, m = n; i <= 1000; ++i, --m)
+				if (low)
+					while (*ml < line.size()-1000 + n)
+						if (++ml == mentors.cend())
+						{
+							low = false;
+							ml = mentors.cbegin();
+							break;
+						}
+				if (!low)
+					while (*ml < n-1000) ++ml;
+				
+				if (!high)
+					while (*mh <= n+1000)
+						if (++mh == mentors.cend())
+						{
+							high =true;
+							mh = mentors.cbegin();
+							break;
+						}
+				if (high)
+					while(*mh+line.size() <= n+1000) ++mh;
+
+				if (low)
 				{
-					if (std::binary_search(ALLc(mentors), m))
-						part3 += factor;
-					if (m == 0)
-					{
-						m = line.size();
-						--factor;
-					}
+					part3 += 999* std::distance(ml, mentors.cend());
+					part3 += 1000 * std::distance(mentors.cbegin(), mh);
 				}
-					
+				else if (high)
+				{
+					part3 += 1000 * std::distance(ml, mentors.cend());
+					part3 += 999 * std::distance(mentors.cbegin(), mh);
+				}
+				else
+					part3 += 1000 * std::distance(ml, mh);
 			}
 		}
 		std::cout << std::format("Part 3: {}\n", part3);
