@@ -56,16 +56,26 @@ int main(int argc, char* argv[])
 		while (in1 >> line)
 			individuals.push_back(line.substr(2));
 		
-		u64 a = 0, b =0;
-		for (int i = 0; i < individuals.front().size(); ++i)
+		for (int x = 0, y = 1, z = 2; x < 3 && !part1; ++x, y = (y+1)%3, z = (z+1)%3)
 		{
-			if (individuals[0][i] == individuals[2][i]) ++a;
-			if (individuals[1][i] == individuals[2][i]) ++b;
+			bool valid = true;
+			u64 a = 0, b = 0;
+			for (int i = 0; i < individuals.front().size() && valid; ++i)
+			{
+				if (char c = individuals[y][i], d = individuals[z][i], e = individuals[x][i];
+					c != e && d != e)
+					valid = false;
+				else
+				{
+					if (c == e) ++a;
+					if (d == e) ++b;
+				}
+			}
+			if (valid)
+				part1 = a * b;
 		}
 
-		
-
-		std::cout << std::format("Part 1: {}\n", a*b);
+		std::cout << std::format("Part 1: {}\n", part1);
 	}
 
 	std::ifstream in2(argv[2]);
@@ -120,8 +130,6 @@ int main(int argc, char* argv[])
 			
 
 		}
-
-		//228975
 		std::cout << std::format("Part 2: {}\n", part2);
 	}
 
