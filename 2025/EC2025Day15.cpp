@@ -1,7 +1,6 @@
 import std;
 
 #define ALL(x) (x).begin(),(x).end()
-#define ALLc(x) (x).cbegin(),(x).cend()
 
 using u64 = unsigned long long;
 
@@ -41,7 +40,6 @@ struct Coord
 {
 	constexpr bool operator <  (const Coord& p) const { if (x < p.x) return true; else if (p.x < x) return false; else return y < p.y; }
 	constexpr Coord operator + (const Coord& p) const { return Coord(x + p.x, y + p.y); }
-	constexpr Coord& operator+=(const Coord& p) { x += p.x; y += p.y; return *this; }
 	constexpr Coord operator * (T scalar) const { return Coord(x * scalar, y * scalar); }
 	constexpr bool operator==(const Coord& p) const { return IsEqual(x, p.x) && IsEqual(y, p.y); }
 	
@@ -64,40 +62,58 @@ u64 Search(std::string&& line)
 	Point start{ 0,0 }, cur = start;
 	using Line = std::pair<Point, Point>;
 	std::vector<Line> vertLines, horLines;
-	std::set<int> ix = { -1, 0, 1 }, iy = ix;
+	std::vector<int> ix = { -1, 0, 1 }, iy = { 0 };
 	bool first = true, wentRight = true;
 	for (const auto& s : insts)
 	{
 		dir = (dir + (s[0] == 'L' ? 1 : 3)) % 4;
 
 		Point d = directions[dir], end = cur + d * std::stoi(s.substr(1));
-		if (dir % 2 == 0)
-			vertLines.emplace_back(Point(std::min(cur.x, end.x), cur.y), Point(std::max(cur.x, end.x), cur.y));
-		else
-			horLines.emplace_back(Point(cur.x, std::min(cur.y, end.y)), Point(cur.x, std::max(cur.y, end.y)));
-
 		if (first)
 		{
 			first = false;
 			wentRight = s[0] == 'R';
+			cur.y += d.y;
 		}
-		for (int i = end.x - 1; i < end.x + 2; ++i)
-			ix.insert(i);
-		for (int i = end.y - 1; i < end.y + 2; ++i)
-			iy.insert(i);
+		if (dir % 2 == 0)
+		{
+			vertLines.emplace_back(Point(std::min(cur.x, end.x), cur.y), Point(std::max(cur.x, end.x), cur.y));
+			ix.push_back(end.x - 1);
+			ix.push_back(end.x + 1);
+		}
+		else
+		{
+			horLines.emplace_back(Point(cur.x, std::min(cur.y, end.y)), Point(cur.x, std::max(cur.y, end.y)));
+			iy.push_back(end.y + 1);
+			iy.push_back(end.y - 1);
+		}
 		cur = end;
 	}
+	ix.push_back(cur.x);
+	iy.push_back(cur.y);
+	std::sort(ALL(ix));
+	std::sort(ALL(iy));
+	ix.erase(std::unique(ALL(ix)), ix.end());
+	iy.erase(std::unique(ALL(iy)), iy.end());
 
 	const Point target = cur;
 	std::map<Point, u64> processed;
-	std::set<std::pair<Point, u64>> phase, next;
-	phase.insert({ start, 0ull });
+	std::unordered_map<int, std::vector<int>::const_iterator> reverseX, reverseY;
+	for (auto iter = ix.cbegin(); iter != ix.cend(); ++iter)
+		reverseX[*iter] = iter;
+	for (auto iter = iy.cbegin(); iter != iy.cend(); ++iter)
+		reverseY[*iter] = iter;
+	std::vector<std::pair<Point, u64>> phase, next;
+	phase.emplace_back( start, 0ull);
 
+	const auto ex = std::prev(ix.cend()), ey = std::prev(iy.cend());
+	int rounds = 0;
 	while (processed.find(target) == processed.cend())
 	{
+		++rounds;
 		for (const auto& si : phase)
 		{
-			auto iterX = ix.find(si.first.x), ex = std::prev(ix.cend()), iterY = iy.find(si.first.y), ey = std::prev(iy.cend());
+			auto iterX = reverseX[si.first.x], iterY = reverseY[si.first.y] ;
 			if (iterX != ix.cbegin())
 			{
 				Point n = { *std::prev(iterX), si.first.y };
@@ -105,9 +121,9 @@ u64 Search(std::string&& line)
 				if (n != target)
 					for (const Line& l : horLines)
 						if (Within(n.x, l.first.x, si.first.x) && Within(l.first.y, n.y, l.second.y))
-							valid = si.first == start;
+						{ valid = false; break;	}
 				if (valid)
-					next.insert({ n, si.second + si.first.x - n.x });
+					next.emplace_back(n, si.second + si.first.x - n.x);
 			}
 			if (iterX != ex)
 			{
@@ -116,9 +132,10 @@ u64 Search(std::string&& line)
 				if (n != target)
 					for (const Line& l : horLines)
 						if (Within(si.first.x, l.first.x, n.x) && Within(l.first.y, n.y, l.second.y))
-							valid = si.first == start;
+						{ valid = false; break; }
+
 				if (valid)
-					next.insert({ n, si.second + n.x - si.first.x });
+					next.emplace_back(n, si.second + n.x - si.first.x);
 			}
 			if (iterY != iy.cbegin() && (si.second || wentRight))
 			{
@@ -127,9 +144,9 @@ u64 Search(std::string&& line)
 				if (n != target)
 					for (const Line& l : vertLines)
 						if (Within(n.y, l.first.y, si.first.y) && Within(l.first.x, n.x, l.second.x))
-							valid = false;
+						{ valid = false; break; }
 				if (valid)
-					next.insert({ n, si.second + si.first.y - n.y });
+					next.emplace_back(n, si.second + si.first.y - n.y);
 			}
 			if (iterY != ey && (si.second || !wentRight))
 			{
@@ -138,23 +155,22 @@ u64 Search(std::string&& line)
 				if (n != target)
 					for (const Line& l : vertLines)
 						if (Within(si.first.y, l.first.y, n.y) && (Within(l.first.x, n.x, l.second.x)))
-							valid = false;
+						{ valid = false; break; }
 				if (valid)
-					next.insert({ n, si.second + n.y - si.first.y });
+					next.emplace_back(n, si.second + n.y - si.first.y);
 			}
 		}
 
 		phase.clear();
+		std::sort(ALL(next));
 		for (const auto& searchInfo : next)
 			if (auto iter = processed.find(searchInfo.first); iter == processed.cend() || iter->second > searchInfo.second)
 			{
 				processed[searchInfo.first] = searchInfo.second;
-				phase.insert(searchInfo);
+				phase.push_back(searchInfo);
 			}
-
 		next.clear();
 	}
-
 	return processed[target];
 }
 
