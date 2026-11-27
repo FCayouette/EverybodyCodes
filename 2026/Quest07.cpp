@@ -1,7 +1,5 @@
 import std;
 
-#define ALLc(x) (x).cbegin(),(x).cend()
-
 struct Cloud
 {
 	int energy = {};
@@ -45,7 +43,7 @@ int SpreadImpulse(std::vector<Cloud>&& clouds, int impulse)
 		if (clouds[i].connections.size() > clouds[start].connections.size())
 			start = i;
 
-	std::map<int, int> addTimes, next;
+	std::unordered_map<int, int> addTimes, next;
 	addTimes[start] = 1;
 	do
 	{
@@ -58,7 +56,62 @@ int SpreadImpulse(std::vector<Cloud>&& clouds, int impulse)
 		std::swap(addTimes, next);
 		next.clear();
 	} while (--impulse > 0);
-	return std::accumulate(ALLc(clouds), 0, [](int total, const Cloud& c) { return total + c.energy; });
+	return std::accumulate(clouds.cbegin(), clouds.cend(), 0, [](int total, const Cloud& c) { return total + c.energy; });
+}
+
+int GetMaxCloud(const std::vector<Cloud>& init, size_t start, size_t end)
+{
+	int best = 0;
+	std::vector<Cloud> clouds = init;
+	std::array<std::unordered_map<int, int>, 11> addTimes, next;
+	for (size_t i = start; i < std::min(clouds.size(), end); ++i)
+	{
+		for (size_t j = 0; j < clouds.size(); ++j)
+			clouds[j].exploded = false, clouds[j].energy = init[j].energy;
+
+		for (int j = 0; j < addTimes.size(); ++j)
+		{
+			addTimes[j].clear();
+			next[j].clear();
+		}
+		addTimes[10][static_cast<int>(i)] = 1;
+		bool goOn = false;
+		do {
+			goOn = false;
+			for (int strength = 1; strength < addTimes.size(); ++strength)
+				for (const auto [id, times] : addTimes[strength])
+					if (!clouds[id].exploded)
+					{
+						clouds[id].energy += times * strength;
+						goOn = true;
+						for (int c : clouds[id].connections)
+							next[strength][c] += times;
+					}
+			if (goOn)
+			{
+				for (size_t j = 0; j < 10; ++j)
+				{
+					next[j].clear();
+					std::swap(addTimes[j], next[j + 1]);
+				}
+				addTimes[0].clear();
+				addTimes[10].clear();
+				next[10].clear();
+
+				for (Cloud& c : clouds)
+					if (c.energy >= 1000000)
+					{
+						c.energy = 0;
+						c.exploded = true;
+						for (int connection : c.connections)
+							addTimes[10][connection] += 1;
+					}
+			}
+		} while (goOn);
+
+		best = std::max(best, std::accumulate(clouds.cbegin(), clouds.cend(), 0, [](int total, const Cloud& c) { return total + c.energy; }));
+	}
+	return best;
 }
 
 int main(int argc, char* argv[])
@@ -96,65 +149,12 @@ int main(int argc, char* argv[])
 			std::cout << std::format("Could not open file {}.\nAborting!\n", argv[3]);
 			return -1;
 		}
-		int part3 = 0;
-
 		std::vector<Cloud> clouds = GenerateClouds(in);
-		std::vector<int> backupEnergies;
-		backupEnergies.reserve(clouds.size());
-		for (const Cloud& c : clouds)
-			backupEnergies.push_back(c.energy);
-		
-		
-		std::array<std::map<int, int>, 11> addTimes, next;
-		for (size_t i = 0; i < clouds.size(); ++i)
-		{
-			for (size_t j = 0; j < clouds.size(); ++j)
-				clouds[j].exploded = false, clouds[j].energy = backupEnergies[j];
+		std::vector<std::future<int>> tasks;
+		for (size_t i = 0; i < clouds.size(); i += 20)
+			tasks.emplace_back(std::async(GetMaxCloud, clouds, i, i + 20));
 
-			for (int j = 0; j < addTimes.size(); ++j)
-			{
-				addTimes[j].clear();
-				next[j].clear();
-			}
-			addTimes[10][static_cast<int>(i)] = 1;
-			bool goOn = false;
-			do {
-				goOn = false;
-				for (int strength = 1; strength < addTimes.size(); ++strength)
-					for (const auto [id, times] : addTimes[strength])
-						if (!clouds[id].exploded)
-						{
-							clouds[id].energy += times * strength;
-							goOn = true;
-							for (int c : clouds[id].connections)
-								next[strength][c] += times;
-						}
-				if (goOn)
-				{
-					for (size_t j = 0; j < 10; ++j)
-					{
-						next[j].clear();
-						std::swap(addTimes[j], next[j + 1]);
-					}
-					addTimes[0].clear();
-					addTimes[10].clear();
-					next[10].clear();
-
-					for (Cloud& c : clouds)
-						if (c.energy >= 1000000)
-						{
-							c.energy = 0;
-							c.exploded = true;
-							for (int connection : c.connections)
-								addTimes[10][connection] += 1;
-						}
-				}
-			} while (goOn);
-			
-			part3 = std::max(part3, std::accumulate(ALLc(clouds), 0, [](int total, const Cloud& c) { return total + c.energy; }));
-		}
-
-		std::cout << std::format("Part 3: {}\n", part3);
+		std::cout << std::format("Part 3: {}\n", std::reduce(tasks.begin(), tasks.end(), 0, [](int best, auto& task) { return std::max(best, task.get()); }));
 	}
 	std::cout << std::format("Duration: {}\n", std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - ChronoStart));
 }
